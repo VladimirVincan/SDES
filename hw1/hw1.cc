@@ -193,10 +193,8 @@ int main(int argc, char *argv[])
 	}
 	infile.close();
 
-#ifdef ASD
-	int x,y;
 	#ifdef MMAP
-	// If memory map is defined send image directly via mmap
+	// If memory map is defined send img directly via mmap
 	int fd;
 	int *p;
 	fd = open("/dev/vga_dma", O_RDWR|O_NDELAY);
@@ -206,7 +204,7 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 	p=(int*)mmap(0,640*480*4, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-	memcpy(p, image, MAX_PKT_SIZE);
+	memcpy(p, img, MAX_PKT_SIZE);
 	munmap(p, MAX_PKT_SIZE);
 	close(fd);
 	if (fd < 0)
@@ -216,6 +214,7 @@ int main(int argc, char *argv[])
 	}
 
 	#else
+	int x,y;
 	// Send via regualar driver interface
 	FILE* fp;
 	for(y=0; y<480; y++)
@@ -228,7 +227,7 @@ int main(int argc, char *argv[])
 				printf("Cannot open /dev/vga for write\n");
 				return -1;
 			}
-			fprintf(fp,"%d,%d,%#04x\n",x,y,image[y*640+x]);
+			fprintf(fp,"%d,%d,%#04x\n",x,y,img[y*640+x]);
 			fclose(fp);
 			if(fp == NULL)
 			{
@@ -239,6 +238,5 @@ int main(int argc, char *argv[])
 	}
 
 	#endif
-#endif //ASD
 	return 0;
 }
