@@ -6,6 +6,8 @@
 
 #include <unistd.h>
 #include <sys/mman.h>
+#include <sys/stat.h>
+#include <unistd.h>
 #include <fcntl.h>
 
 #define WIDTH 640
@@ -197,7 +199,8 @@ int main(int argc, char *argv[])
 	// If memory map is defined send img directly via mmap
 	int fd;
 	int *p;
-	fd = open("/dev/vga_dma", O_RDWR|O_NDELAY);
+	// fd = open("/dev/vga_dma", O_RDWR|O_NDELAY);
+  fd = shm_open("vga_buffer", O_RDWR, 0666);
 	if (fd < 0)
 	{
 		printf("Cannot open /dev/vga for write\n");
