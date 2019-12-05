@@ -180,8 +180,8 @@ void doprocessing (int sock, int id)
 int main( int argc, char *argv[] )
 {
   int fd;
-  // fd = open("/dev/vga_dma", O_RDWR|O_NDELAY);
-  fd = shm_open("vga_buffer", O_RDWR, 0666);
+  fd = open("/dev/vga_dma", O_RDWR|O_NDELAY);
+  // fd = shm_open("vga_buffer", O_RDWR, 0666);
   if (fd < 0)
     {
       // printf("Cannot open /dev/vga for write\n");
