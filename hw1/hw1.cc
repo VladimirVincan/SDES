@@ -200,10 +200,12 @@ int main(int argc, char *argv[])
 	int fd;
 	int *p;
 	// fd = open("/dev/vga_dma", O_RDWR|O_NDELAY);
+  // fd = shm_open("/home/bici/vga_ldd_emulator/vga_buffer", O_RDWR, 0666);
   fd = shm_open("vga_buffer", O_RDWR, 0666);
 	if (fd < 0)
 	{
-		printf("Cannot open /dev/vga for write\n");
+		// printf("Cannot open /dev/vga for write\n");
+		printf("Cannot open vga_buffer for write\n");
 		return -1;
 	}
 	p=(int*)mmap(0,640*480*4, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
@@ -212,7 +214,8 @@ int main(int argc, char *argv[])
 	close(fd);
 	if (fd < 0)
 	{
-		printf("Cannot close /dev/vga for write\n");
+		// printf("Cannot close /dev/vga for write\n");
+    printf("Cannot close vga_buffer\n");
 		return -1;
 	}
 
@@ -224,17 +227,19 @@ int main(int argc, char *argv[])
 	{
 		for(x=0; x<640; x++)
 		{
-			fp = fopen("/dev/vga_dma", "w");
+			fp = fopen("/vga_buffer", "w");
 			if(fp == NULL)
 			{
-				printf("Cannot open /dev/vga for write\n");
+				// printf("Cannot open /dev/vga for write\n");
+        printf("Cannot open /vga_buffer for write\n");
 				return -1;
 			}
 			fprintf(fp,"%d,%d,%#04x\n",x,y,img[y*640+x]);
 			fclose(fp);
 			if(fp == NULL)
 			{
-				printf("Cannot close /dev/vga\n");
+				// printf("Cannot close /dev/vga\n");
+				printf("Cannot close /vga_buffer\n");
 				return -1;
 			}
 		}

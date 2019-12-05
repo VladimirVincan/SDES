@@ -144,93 +144,106 @@ int main(int argc, char *argv[])
   done = 0;
   stat = IDLE;
   while (!done){
-    switch(stat){
-    case IDLE:
-      printf("type 'ls' for listing FTP download directory\n> ");
+    printf("type WASD repositioning rectangle\n> ");
+    gets(message);
+    /* trenutno jedino ls komanda je podrzana od strane naseg klijenta */
+    if (strcmp(message,"q") == 0)
+      done = 1;
+    else if (strcmp(message,"w") != 0 && strcmp(message,"a") != 0 && strcmp(message,"s") != 0 && strcmp(message,"d") != 0) {
+      printf("Currently unsupported command.\n");
       gets(message);
-      /* trenutno jedino ls komanda je podrzana od strane naseg klijenta */
-      while (strcmp(message,"ls") != 0){
-        printf("Currently supported FTP commands:\n \
-ls - print FTP server download directory content\n> ");
-        gets(message);
-      }
-      /* posalji komandu serveru kako bi nam
-         poslao sadrzaj download direktorijuma*/
-      write (sockfd, message, strlen(message));
-      stat = LS;
-      break;
-    case LS:
-      n = read (sockfd, recvBuff, 1024);
-      recvBuff[n] = 0; //terminiraj primljeni string kako bi ga mogao ispisati
-      /* parsiraj primljen sadrzaj direktorijuma od servera
-         u kome se nalaze u svakom redu ime datoteke sa svojim id-jem*/
-      token = strtok(recvBuff, delimiter);
-      /* ne znamo koliko ima redova u primljenoj poruci
-         pa pretrazuj primljeni string red po red */
-      while (token != NULL){
-        sscanf(token,"(%d) %s",&number, tmpstr);
-        /* dodaj u listu prepoznate podatke iz primljenog stringa */
-        addtolist(&head,number,tmpstr);
-        token =strtok(NULL,delimiter);
-      }
-      printoutlist(head);
-      printf("Please enter id of a file you want to download and press ENTER:\n> ");
-      gets(message);
-      /* konvertuj string u broj kako bi mogao da pretrazujes listu*/
-      selected = atoi(message);
-      /* takodje, posalji serveru id datoteke koja je odabrana */
-      write(sockfd, message, strlen(message));
-      /* otvori datoteku sa istim imenom kako bi u nju mogli da se
-         upisuju podaci koji se primaju od strane FTP servera.
-         NAPOMENA: na LPC ploci jedino u /tmp direktorijumu mogu da se kreiraju
-         datoteke, ostatak je read-only */
-      strcpy(path,"/tmp/");
-      strcat(path,getfromlist(head,selected));
-      file = fopen(path,"w");
-      if (file == NULL){
-        printf("Error opening file:%s", getfromlist(head,selected));
-        exit(1);
-      }
-      stat = FILE_SIZE;
-      break;
-    case FILE_SIZE:
-      /* server najpre salje duzinu odabrane datoteke
-         kako bismo mogli da znamo sta da ocekujemo prilikom
-         prijema sadrzaja datoteke i da prepoznamo kraj datoteke */
-      n = read (sockfd, recvBuff, 1024);
-      recvBuff[n] = 0;
-      filesize = atoi(recvBuff);
-      printf("%s file size: %d bytes.\n",getfromlist(head,selected),filesize);
-      /* vrati potvrdu serveru i predji u stanje prijema datoteke */
-      strcpy(message,"OK");
-      write(sockfd, message, strlen(message));
-      stat = RECEIVING;
-      break;
-    case RECEIVING:
-      received = 0;
-      /* sve dok ne primis unapred definisani broj bajtova, nastavi
-         da primas podatke sa servera i da upisujes u datoteku u /tmp direktorijumu */
-      while (received != filesize){
-        n = read (sockfd, recvBuff, 256);
-        received += n;
-        fwrite(recvBuff, 1, n, file);
-      }
-      fclose(file);
-      printf("\nFile %s successfuly received.\n \
-(c)ontinue or (q)uit? \n>", getfromlist(head, selected));
-      ans = getchar();
-      getchar(); //getchar uvek prihvati prvi karakter ali ceka na newline '\n'
-      if (ans == 'c')
-        stat = IDLE;
-      else
-        done = 1;
-      /* svakako nam ne treba vise prethodna lista jer je moguce da se sadrzaj
-         FTP direktorijuma menjao u medjuvremenu dok smo download-ovali prethodnu
-         datoteku */
-      freelist(&head);
-      /* i posalji odluku serveru kako bi znao
-         da li da terminira trenutno aktivnu konekciju */
-      write(sockfd,&ans,1);
-      printf("\n");
-      break;
-    }} return 0;}
+    }
+    write (sockfd, message, strlen(message));
+  }
+//     switch(stat){
+//     case IDLE:
+//       printf("type 'ls' for listing FTP download directory\n> ");
+//       gets(message);
+//       /* trenutno jedino ls komanda je podrzana od strane naseg klijenta */
+//       while (strcmp(message,"ls") != 0){
+//         printf("Currently supported FTP commands:\n \
+// ls - print FTP server download directory content\n> ");
+//         gets(message);
+//       }
+//       /* posalji komandu serveru kako bi nam
+//          poslao sadrzaj download direktorijuma*/
+//       write (sockfd, message, strlen(message));
+//       stat = LS;
+//       break;
+//     case LS:
+//       n = read (sockfd, recvBuff, 1024);
+//       recvBuff[n] = 0; //terminiraj primljeni string kako bi ga mogao ispisati
+//       /* parsiraj primljen sadrzaj direktorijuma od servera
+//          u kome se nalaze u svakom redu ime datoteke sa svojim id-jem*/
+//       token = strtok(recvBuff, delimiter);
+//       /* ne znamo koliko ima redova u primljenoj poruci
+//          pa pretrazuj primljeni string red po red */
+//       while (token != NULL){
+//         sscanf(token,"(%d) %s",&number, tmpstr);
+//         /* dodaj u listu prepoznate podatke iz primljenog stringa */
+//         addtolist(&head,number,tmpstr);
+//         token =strtok(NULL,delimiter);
+//       }
+//       printoutlist(head);
+//       printf("Please enter id of a file you want to download and press ENTER:\n> ");
+//       gets(message);
+//       /* konvertuj string u broj kako bi mogao da pretrazujes listu*/
+//       selected = atoi(message);
+//       /* takodje, posalji serveru id datoteke koja je odabrana */
+//       write(sockfd, message, strlen(message));
+//       /* otvori datoteku sa istim imenom kako bi u nju mogli da se
+//          upisuju podaci koji se primaju od strane FTP servera.
+//          NAPOMENA: na LPC ploci jedino u /tmp direktorijumu mogu da se kreiraju
+//          datoteke, ostatak je read-only */
+//       strcpy(path,"/tmp/");
+//       strcat(path,getfromlist(head,selected));
+//       file = fopen(path,"w");
+//       if (file == NULL){
+//         printf("Error opening file:%s", getfromlist(head,selected));
+//         exit(1);
+//       }
+//       stat = FILE_SIZE;
+//       break;
+//     case FILE_SIZE:
+//       /* server najpre salje duzinu odabrane datoteke
+//          kako bismo mogli da znamo sta da ocekujemo prilikom
+//          prijema sadrzaja datoteke i da prepoznamo kraj datoteke */
+//       n = read (sockfd, recvBuff, 1024);
+//       recvBuff[n] = 0;
+//       filesize = atoi(recvBuff);
+//       printf("%s file size: %d bytes.\n",getfromlist(head,selected),filesize);
+//       /* vrati potvrdu serveru i predji u stanje prijema datoteke */
+//       strcpy(message,"OK");
+//       write(sockfd, message, strlen(message));
+//       stat = RECEIVING;
+//       break;
+//     case RECEIVING:
+//       received = 0;
+//       /* sve dok ne primis unapred definisani broj bajtova, nastavi
+//          da primas podatke sa servera i da upisujes u datoteku u /tmp direktorijumu */
+//       while (received != filesize){
+//         n = read (sockfd, recvBuff, 256);
+//         received += n;
+//         fwrite(recvBuff, 1, n, file);
+//       }
+//       fclose(file);
+//       printf("\nFile %s successfuly received.\n \
+// (c)ontinue or (q)uit? \n>", getfromlist(head, selected));
+//       ans = getchar();
+//       getchar(); //getchar uvek prihvati prvi karakter ali ceka na newline '\n'
+//       if (ans == 'c')
+//         stat = IDLE;
+//       else
+//         done = 1;
+//       /* svakako nam ne treba vise prethodna lista jer je moguce da se sadrzaj
+//          FTP direktorijuma menjao u medjuvremenu dok smo download-ovali prethodnu
+//          datoteku */
+//       freelist(&head);
+//       /* i posalji odluku serveru kako bi znao
+//          da li da terminira trenutno aktivnu konekciju */
+//       write(sockfd,&ans,1);
+//       printf("\n");
+//       break;
+//     }
+  return 0;
+}

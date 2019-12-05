@@ -6,106 +6,111 @@
 #include <stdlib.h>
 #include <string.h>
 
-
 #include <netdb.h>
 #include <unistd.h>
 #include <errno.h>
 #include <arpa/inet.h>
 
-/*definisanje enumeracije neophodne za implementaciju FSM koja
-  se koristi kako za slanje tako i za prijem datoteka*/
-typedef enum {
-  IDLE,
-  LS,
-  FILE_SIZE,
-  SENDING
-} ftp_state;
-/*definisanje strukture koja ce se koristiti za dinamicke strukture
-  podataka koje se kreiraju u toku izvrsavanja programa (runtime)*/
-struct Files {
-  int number;
-  char * name;
-  struct Files * next;
-};
-/*promenljive koje ce biti koriscene*/
-struct Files * head = NULL;
-DIR * d;
-struct dirent * dir;
-ftp_state stat = IDLE; 
+#include <iostream>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+// #include <string>
+
 int selection = 0;
 int filesize;
 int sent = 0;
 FILE * file;
-/* addtolist, getfromlist, printoulist i freelist su funkcije koje
-   se koriste za manipulisanje jednostruko povezanim listama kao
-   osnovom koriscenom u radu sa dinamickim strukturama*/
-/*phead predstavlja “glavu” povezane liste, a num i str
-  podatke koje treba upisati u novo-kreirani element liste*/
-void addtolist(struct Files ** phead, int num, char * str){
-  struct Files * ptr;
-  /*ukoliko je phead NULL to znaci da je lista prazna*/
-  if(*phead == NULL){
-    *phead = (struct Files *) malloc(sizeof(struct Files));
-    ptr = *phead;
-    if(ptr == NULL){
-      printf("Error allocating memory..\n");
-      exit(1);
-    }
-  }else{
-    /*lista nije prazna, dodaj samo jos jedan element na kraju liste*/
-    ptr=*phead;
-    while(ptr->next != NULL){
-      ptr=ptr->next;
-    }
-    ptr->next = (struct Files *) malloc(sizeof(struct Files));
-    if(ptr->next == NULL){
-      printf("Error allocating memory..\n");
-      exit(1);
-    }
-    ptr=ptr->next;
-  }
-  /*dodat je novi element, sada ga popuni
-    potrebnim ulaznim podacima*/
-  ptr->number = num;
-  ptr->name = (char *) malloc (strlen(str));
-  if (ptr->name == NULL){
-    printf("Could not allocate memory..\n");
-    exit(1);
-  }
-  strcpy(ptr->name, str);
-  ptr->next = NULL;
+int *p;
+
+#define WIDTH 640
+#define HEIGHT 480
+#define MAX_PKT_SIZE (640*480*4)
+// unsigned int img[HEIGHT][WIDTH];
+
+std::string black = "BLACK";
+std::string red = "RED";
+std::string yellow = "YELLOW";
+std::string green = "GREEN";
+std::string blue = "BLUE";
+
+unsigned int get_color(std::string color_s)
+{
+	unsigned int black_color = 0;
+	unsigned int red_color   = (1<<15) | (1<<14) | (1<<13) | (1<<12) | (1<<11);
+	unsigned int green_color = (1<<10) | (1<<9)  | (1<<8)  | (1<<7)  | (1<<6)  | (1<<5);
+	unsigned int blue_color  = (1<<4)  | (1<3)   | (1<<2)  | (1<<1)  | (1<<0);
+	unsigned int yellow_color = red_color | green_color; 
+
+	std::cout << "input color = " << color_s << std::endl;
+
+	if (!color_s.compare(black))
+		return black_color;
+	else if (!color_s.compare(red))
+		return red_color;
+	else if (!color_s.compare(yellow))
+		return yellow_color;
+	else if (!color_s.compare(green))
+		return green_color;
+	else if (!color_s.compare(blue))
+		return blue_color;
+
+	printf("Not valid color.\n");
+	exit(3);
 }
-/*pronadji u listi element liste preko njegovog id-ja */
-char * getfromlist(struct Files * head, int id){
-  while(head != NULL){
-    if (head->number == id)
-      return head->name;
-    head=head->next;
-  }
-  /*ili vrati NULL ukoliko nema takvog*/
-  return NULL;
+
+int x_pos[4] = {WIDTH/4-20, WIDTH*3/4-20, WIDTH/4-20, WIDTH*3/4-20};
+int y_pos[4] = {HEIGHT/4-20, HEIGHT/4-20, HEIGHT*3/4-20, HEIGHT*3/4-20};
+bool set_rect[4] = {false, false, false, false};
+int x_min[4] = {0,           WIDTH/2+2,  0,          WIDTH/2+2};
+int x_max[4] = {WIDTH/2-40,  WIDTH-40,   WIDTH/2-40, WIDTH-40};
+int y_min[4] = {0,           0,          HEIGHT/2+2, HEIGHT/2+2};
+int y_max[4] = {HEIGHT/2-40, HEIGHT/2-40,HEIGHT-40,  HEIGHT-40};
+
+void line_v(int x, int y1, int y2, std::string color)
+{
+  unsigned int rgb;
+  rgb = get_color(color);
+  for (int i = y1; i < y2; ++i)
+    // img[i][x] = rgb;
+    *(p+WIDTH*i+x) = rgb;
 }
-/*ispisi sadrzaj liste jedan po jedan element*/
-void printoutlist(struct Files * head){
-  while (head!=NULL){
-    printf("(%d) %s\n",head->number,head->name);
-    head = head->next;
-  }
+
+void line_h(int x1, int x2, int y, std::string color)
+{
+  unsigned int rgb;
+  rgb = get_color(color);
+  for (int i = x1; i < x2; ++i)
+    // img[y][i] = rgb;
+    *(p+WIDTH*y+i) = rgb;
 }
-/*oslobodi prethodno zauzete memorijske resurse*/
-void freelist(struct Files ** phead){
-  struct Files * ptr = *phead;
-  while(*phead != NULL){
-    free(ptr->name);
-    ptr=ptr->next;
-    free(*phead);
-    *phead = ptr;
-  }
-} 
-/*ovo je jezgro serverske funkcionalnosti-ova funkcija se poziva
-  nakon uspostavljanja veze sa klijentom kako bi klijentu bilo
-  omoguceno da preuzme sa servera zahtevane datoteke. */
-void doprocessing (int sock)
+
+void rect(int x1, int x2, int y1, int y2, std::string color)
+{
+  unsigned int rgb;
+  rgb = get_color(color);
+  for (int i = y1; i < y2; ++i)
+    for (int j = x1; j < x2; ++j)
+      // img[i][j] = rgb;
+      *(p+WIDTH*i+j) = rgb;
+}
+
+void rect40(int x, int y, std::string color)
+{
+  rect(x,x+40,y, y+40, color);
+}
+
+void flush_img(int id)
+{
+  unsigned int rgb;
+  rgb = get_color("BLACK");
+  for (int i = y_min[id]; i < y_max[id]+40; ++i)
+    for (int j = x_min[id]; j < x_max[id]+40; ++j)
+      // img[i][j] = rgb;
+      *(p+i*WIDTH+j) = rgb;
+}
+
+void doprocessing (int sock, int id)
 {
   /*lokalne promenljive*/
   int n;
@@ -116,113 +121,92 @@ void doprocessing (int sock)
   int done = 0;
   int i = 0;
   int w = 30;
+  std::cout << "Socket no = " << id << std::endl;
+  set_rect[id] = true;
+  // call_mmap(id);
+  flush_img(id);
+  rect40(x_pos[id],y_pos[id],"RED");
+
   while (!done)
     {
-      switch(stat){
-      case IDLE:
-        printf("[IDLE] Waiting for ls command..\n");
+      printf("[IDLE] Waiting for WASD command..\n");
+      n = -1;
+      while(n < 1)
         n = read(sock,buffer,255);
-        buffer[n] = 0;//terminiraj string primljen od strane klijenta
-        printf("Received command: %s\n",buffer);
-        if (strcmp(buffer,"ls") == 0){
-          stat = LS; //predji u naredno stanje FSM
-        }else
-          printf("Could not recognize command string...\n");
-        break;
-      case LS:
-        printf("Content of FTP server download directory:\n");
-        i = 1;
-        /*sadrzaj trenutnog direktorijuma - FTP direktorijuma*/
-        d = opendir(".");
-        if (d){
-          sendBuf[0]=0;//neophodno zbog strcat od dole
-          /*za svaki fajl unutar trenutnog direktorijuma*/
-          while ((dir = readdir(d))){
-            /*ukoliko je to zaista fajl a na poddirektorijum*/
-            if(dir->d_type != DT_DIR){
-              /*dodaj odgovarajuci element u listu*/
-              addtolist(&head,i++,dir->d_name);
-              /*i kreiraj string za slanje klijentu*/
-              sprintf(tempstr, "(%d) %s\n", i-1, dir->d_name);
-              strcat(sendBuf,tempstr);
-            }
-          }
-          /*prikazi sadrzaj kreirane liste*/
-          printoutlist(head);
-          closedir(d);
-          /*i posalji klijentu spisak trenutno dostupnih datoteka*/
-          write(sock,sendBuf,strlen(sendBuf));
-        }
-        printf("waiting for id of file to be sent...\n");
-        n = read(sock, buffer, 255);
-        buffer[n] = 0;
-        /*datoteka za slanje bice prepoznata preko svog id-ja*/
-        selection = atoi(buffer);
-        stat = FILE_SIZE;
-        break;
-      case FILE_SIZE:
-        /*odredi velicinu fajla kako bi klijent znao sta
-          da ocekuje prilikom slanja podataka*/
-        file = fopen(getfromlist(head,selection),"rb");
-        fseek(file,0L,SEEK_END);
-        filesize=ftell(file);
-        /*i vrati se na pocetak datoteke kako bi bio spreman za slanje*/
-        fseek(file,0L,SEEK_SET);
-        /*posalji podatak o velicini odabrane datoteke klijentu*/
-        sprintf(sendBuf,"%d",filesize);
-        write(sock,sendBuf,strlen(sendBuf));
-        stat = SENDING;
-        break;
-      case SENDING:
-        sent=0; 
-        printf("Sending file %s. File size: %d bytes\n", \
-               getfromlist(head, selection), filesize);
-        /*sacekaj da dobijes potvrdu klijenta da je spreman za slanje*/
-        n = read(sock,buffer,255);
-        buffer[n] = 0;//terminiraj string
-        printf("Received acknowlegde: %s\n",buffer);
-        while(sent!=filesize){
-          n = fread(sendBuf,1,256,file);
-          sent += n;
-          write(sock,sendBuf,n);
-          /*progress bar u konzoli - trik*/
-          float ratio = sent/(float)filesize;
-          int c = ratio * w;
-          printf("%3d%% [",(int)(ratio*100) );
-          int x;
-          for (x=0; x<c; x++)
-            printf("=");
-          for (x=c; x<w; x++)
-            printf(" ");
-          if (sent != filesize){
-            printf("]\r");
-          }else{
-            printf("]\n%s succesfully sent! \n", \
-                   getfromlist(head, selection));
-          }
-          /*ovo je samo da bi se video transfer i za manje datoteke*/
-          usleep(100000L);
-        }
-        fclose(file);
-        /*sacekaj da vidis da li ovaj klijent zeli da preuzima jos datoteka,
-          ili je zavrsio sa radom*/
-        n = read(sock,buffer,255);
-        buffer[n] = 0;
-        if (buffer[0] == 'c')
-          stat = IDLE;
-        else
-          done = 1;
-        /*cak i ukoliko je klijent zavrsio, unisti listu datoteka
-          jer je moguce da se u medjuvremenu azurirala pa treba
-          napraviti novu strukturu koja ce prikazati novi sadrzaj*/
-        freelist(&head);
-        break;
+      buffer[n] = 0;//terminiraj string primljen od strane klijenta
+      printf("Received command: %s\n",buffer);
+      if (strcmp(buffer,"q") == 0){
+        printf("Client disconnected.\n");
+        set_rect[id] = false;
+        flush_img(id);
+        // call_mmap(-1);
+        return;
       }
+      else if (strcmp(buffer,"w") == 0)
+        {
+          printf("Received W.\n");
+          if (y_pos[id] > y_min[id] && y_pos[id]-10 > y_min[id]) y_pos[id] -= 10;
+          else y_pos[id] = y_min[id];
+        }
+      else if (strcmp(buffer,"a") == 0)
+        {
+          printf("Received A.\n");
+          if (x_pos[id] > x_min[id] && x_pos[id]-10 > x_min[id]) x_pos[id] -= 10;
+          else x_pos[id] = x_min[id];
+        }
+      else if (strcmp(buffer,"s") == 0)
+        {
+          printf("Received S.\n");
+          if (y_pos[id] < y_max[id] && y_pos[id]+10 < y_max[id]) y_pos[id] += 10;
+          else y_pos[id] = y_max[id];
+        }
+      else if (strcmp(buffer,"d") == 0)
+        {
+          printf("Received D.\n");
+          if (x_pos[id] < x_max[id] && x_pos[id]+10 < x_max[id]) x_pos[id] += 10;
+          else x_pos[id] = x_max[id];
+        }
+      else {
+        printf("Could not recognize command string...\n");
+        printf("%s\n", buffer);
+      }
+      // call_mmap(id);
+      flush_img(id);
+      rect40(x_pos[id],y_pos[id],"RED");
     }
 }
 /* glavni program serverske aplikacije */
+#define SHMEM_SIZE (4 * sizeof(int))
 int main( int argc, char *argv[] )
 {
+  int fd;
+  // fd = open("/dev/vga_dma", O_RDWR|O_NDELAY);
+  fd = shm_open("vga_buffer", O_RDWR, 0666);
+  if (fd < 0)
+    {
+      // printf("Cannot open /dev/vga for write\n");
+      printf("Cannot open vga_buffer for write\n");
+      exit(2);
+    }
+  p=(int*)mmap(0,640*480*4, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+
+//==========
+
+  int *arr_cli;
+  int shmem_fd = shm_open("cli_arr", O_RDWR | O_CREAT, 0666);
+  if (shmem_fd < 0) {
+    std::cout << "ERROR creating shared memory vga_buffer\n";
+    return EXIT_FAILURE;
+  }
+  ftruncate(shmem_fd, SHMEM_SIZE);
+
+  arr_cli = (int *)mmap(NULL, SHMEM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED,
+                       shmem_fd, 0);
+  arr_cli[0] = 0;
+  arr_cli[1] = 0;
+  arr_cli[2] = 0;
+  arr_cli[3] = 0;
+
   int sockfd, newsockfd, portno, clilen;
   char buffer[256];
   struct sockaddr_in serv_addr, cli_addr;
@@ -243,6 +227,9 @@ int main( int argc, char *argv[] )
     }
   /* Inicijalizacija strukture socket-a */
   bzero((char *) &serv_addr, sizeof(serv_addr));
+  rect(0,WIDTH,0,HEIGHT,"BLACK");
+  line_v(WIDTH/2,0,HEIGHT-1,"BLUE");
+  line_h(0,WIDTH-1,HEIGHT/2,"BLUE");
   portno = 5001;
   serv_addr.sin_family = AF_INET; //mora biti AF_INET
   /* ip adresa host-a. INADDR_ANY vraca ip adresu masine na kojoj se startovao server */
@@ -261,6 +248,7 @@ int main( int argc, char *argv[] )
   /* postavi prethodno kreirani socket kao pasivan socket
      koji ce prihvatati zahteve za konekcijom od klijenata
      koriscenjem accept funkcije */
+  // call_mmap(-1);
   listen(sockfd,5); //maksimalno 5 klijenata moze da koristi moje usluge
   clilen = sizeof(cli_addr);
   while (1)
@@ -277,7 +265,27 @@ int main( int argc, char *argv[] )
         }
       /* Kreiraj child proces sa ciljem da mozes istovremeno da
          komuniciras sa vise klijenata */
+      int cli_num = -1;
+      if (arr_cli[0] == 0)
+        {
+          arr_cli[0] = 1; cli_num = 0;
+        }
+      else if (arr_cli[1] == 0)
+        {
+          arr_cli[1] = 1; cli_num = 1;
+        }
+      else if (arr_cli[2] == 0)
+        {
+          arr_cli[2] = 1; cli_num = 2;
+        }
+      else if (arr_cli[3] == 0)
+        {
+          arr_cli[3] = 1; cli_num = 3;
+        }
+      std::cout << "CLI NUM = " <<  cli_num << std::endl;
       int pid = fork();
+
+
       if (pid < 0)
         {
           perror("ERROR on fork");
@@ -288,7 +296,10 @@ int main( int argc, char *argv[] )
           /* child proces ima pid 0 te tako mozemo znati da li
              se ovaj deo koda izvrsava u child ili parent procesu */
           close(sockfd);
-          doprocessing(newsockfd);
+          doprocessing(newsockfd, cli_num);
+          arr_cli[cli_num] = 0;
+          for (int i = 0;i<4;++i)
+            std::cout << "arr cli[" << i << "]" << arr_cli[i] << std::endl;
           exit(0);
         }
       else
@@ -299,5 +310,19 @@ int main( int argc, char *argv[] )
             nove klijente koji salju zahtev za konekcijom*/
           close(newsockfd);
         }
+      // call_mmap();
     } /* end of while */
+
+  munmap(arr_cli, SHMEM_SIZE);
+  close(shmem_fd);
+  shm_unlink("arr_cli");
+
+  munmap(p, MAX_PKT_SIZE);
+  close(fd);
+  if (fd < 0)
+    {
+      // printf("Cannot close /dev/vga for write\n");
+      printf("Cannot close vga_buffer\n");
+      exit(3);
+    }
 }
